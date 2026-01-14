@@ -1,64 +1,102 @@
 import { TOPICS } from "../content/topics";
-import { PlannedPost, ReelScript, SocialFormat, CopyTone } from "../types";
+import { PlannedPost, ReelScript, SocialFormat, CopyTone, BrandInfo } from "../types";
 
 // --- TEXT BUILDER ASSETS ---
 
 const HOOKS: Record<CopyTone, string[]> = {
     TRADICIONAL: [
-        "En Farmacia Pastor, sabemos que la salud es lo primero.",
-        "Como hace años en Cafayate, estamos para cuidarte.",
-        "La tranquilidad de saber que contás con nosotros.",
-        "Tradición y confianza, los pilares de nuestro servicio."
+        "En Farmacia Pastor, sabemos que la salud es lo más importante para vos y tu familia.",
+        "Más de 30 años acompañando a los vecinos de Cafayate con compromiso y dedicación.",
+        "La tranquilidad de saber que contás con nosotros en cada etapa de la vida.",
+        "Tradición, confianza y servicio: los pilares que nos definen desde siempre."
     ],
     CERCANO: [
-        "¡Hola vecinos! 👋 Esperamos que estén teniendo un lindo día.",
-        "Queremos verte bien y cuidarte en cada estación.",
-        "¿Sabías esto? Un pequeño consejo para tu día a día.",
-        "Nos encanta recibirte y poder ayudarte con tus dudas."
+        "¡Hola vecinos! 👋 Esperamos que estén teniendo un hermoso día en nuestros Valles.",
+        "Nos encanta verte bien y ser parte de tu día a día. Hoy queremos compartirte algo útil.",
+        "¿Sabías esto? 🤔 A veces los pequeños hábitos hacen una gran diferencia en tu salud.",
+        "¡Buen día Cafayate! ☀️ Pasamos por acá para dejarte un consejo que te va a servir."
     ],
     PROFESIONAL: [
-        "Información farmacéutica importante:",
-        "La prevención es la clave para una buena salud.",
-        "Recomendación experta de Farmacia Pastor:",
-        "Atención: Consejos para el correcto uso de medicamentos."
+        "Información farmacéutica de importancia para el cuidado de su salud:",
+        "Desde el punto de vista sanitario, la prevención es la herramienta más eficaz.",
+        "Recomendación experta de Farmacia Pastor para el bienestar de la comunidad:",
+        "Atención: Consejos profesionales para el uso responsable de medicamentos."
     ],
     URGENTE: [
-        "⚠️ Atención: Es importante tener esto en cuenta hoy.",
-        "No dejes pasar esto por alto.",
-        "Recordatorio importante para esta semana:",
-        "¡Cuidate! Prevención activa ante todo."
+        "⚠️ Atención: Es muy importante tener esto en cuenta durante estos días.",
+        "No dejes pasar esto por alto. Tu salud no puede esperar.",
+        "Recordatorio importante para esta semana en Cafayate:",
+        "¡Cuidate! La prevención activa es fundamental hoy."
+    ]
+};
+
+const BODY_DEVELOPMENT: Record<CopyTone, string[]> = {
+    TRADICIONAL: [
+        "Entendemos que cada paciente es único, por eso nos esforzamos en brindarte la mejor atención farmacéutica. Nuestro equipo está capacitado para orientarte en todo lo que necesites.",
+        "A veces, lo único que necesitamos es un consejo honesto y profesional. En nuestra farmacia vas a encontrar siempre una mano amiga dispuesta a escuchar.",
+        "Mantener la salud al día es una tarea de todos los días. Nosotros te facilitamos el acceso a todo lo que necesitás, desde medicamentos hasta productos de cuidado personal."
+    ],
+    CERCANO: [
+        "No hay nada como sentirse bien y con energía. ✨ Por eso seleccionamos los mejores productos para que te mimes y cuides a los tuyos.",
+        "Sabemos que la rutina a veces nos gana, pero tomarse un ratito para uno mismo es clave. ¿Hace cuánto no renovás tu botiquín o te das un gusto?",
+        "Nos encanta cuando nos visitan y nos cuentan cómo están. Somos más que una farmacia, somos tus vecinos y estamos acá para lo que necesites."
+    ],
+    PROFESIONAL: [
+        "Contamos con un amplio stock de medicamentos y trabajamos con todas las obras sociales para garantizar que no interrumpas tu tratamiento.",
+        "La adherencia a los tratamientos y el uso correcto de la dermocosmética son fundamentales para ver resultados reales. Consultanos tus dudas.",
+        "Nuestra misión es dispensar salud con responsabilidad. Verificamos cada receta y te asesoramos sobre posibles interacciones o cuidados especiales."
+    ],
+    URGENTE: [
+        "Ante los cambios de clima o situaciones estacionales, es vital estar preparados. Revisa tu stock en casa y no esperes a último momento.",
+        "Si tenés síntomas o dudas, lo mejor es actuar rápido y consultar a un profesional. Estamos disponibles para asesorarte en lo que esté a nuestro alcance.",
+        "La salud es hoy. Priorizá tu bienestar y el de tu familia acercándote a profesionales de confianza."
     ]
 };
 
 const VALUES_CLOSERS: string[] = [
-    "En Farmacia Pastor, tu bienestar es nuestra tradición. 🌿",
-    "Somos tu farmacia de confianza en Cafayate. Siempre cerca.",
-    "Cuidando a las familias de Cafayate con la dedicación de siempre.",
-    "Compromiso, ética y salud. Los valores que nos definen.",
-    "Vení a charlar con nosotros, estamos para asesorarte con honestidad."
+    "En Farmacia Pastor, tu bienestar es nuestra tradición. Gracias por elegirnos. 🌿",
+    "Somos tu farmacia de confianza en Cafayate. Siempre cerca, siempre con vos.",
+    "Cuidando a las familias de Cafayate con la dedicación de siempre. ❤️",
+    "Compromiso, ética y salud. Los valores que nos definen y nos impulsan cada día.",
+    "Vení a charlar con nosotros, estamos para asesorarte con honestidad y calidez."
 ];
 
 const CTAS: Record<CopyTone, string[]> = {
     TRADICIONAL: [
-        "Visitanos en nuestra dirección de siempre.",
-        "Consultanos con confianza.",
-        "Te esperamos en el mostrador."
+        "Visitanos en nuestra dirección de siempre. Te esperamos.",
+        "Consultanos con confianza en el mostrador.",
+        "Estamos a tu disposición para cualquier consulta."
     ],
     CERCANO: [
-        "¡Te esperamos! 😊",
-        "Mandanos un WhatsApp si tenés dudas.",
-        "Date una vuelta por la farmacia."
+        "¡Te esperamos! 😊 Pasá a saludarnos.",
+        "Mandanos un WhatsApp si tenés dudas, te respondemos al toque.",
+        "Date una vuelta por la farmacia y descubrí todo lo nuevo."
     ],
     PROFESIONAL: [
-        "Consultá siempre a tu médico y farmacéutico.",
-        "Asesoramiento profesional garantizado.",
-        "Acercate para una consulta personalizada."
+        "Consultá siempre a tu médico y farmacéutico de confianza.",
+        "Asesoramiento profesional garantizado en cada visita.",
+        "Acercate para una consulta personalizada con nuestro equipo."
     ],
     URGENTE: [
-        "No te automediques, consultanos hoy.",
-        "Pasá hoy mismo.",
-        "Prevengamos juntos."
+        "No te automediques, consultanos hoy mismo.",
+        "Pasá hoy, no lo dejes para mañana.",
+        "Prevengamos juntos. Te esperamos."
     ]
+};
+
+const getContactFooter = (brand: BrandInfo) => {
+    // Determine contact method to show based on availability
+    const phonePart = brand.phone ? `📞 ${brand.phone}` : "";
+    const wppPart = brand.whatsapp ? `📲 WhatsApp: ${brand.whatsapp}` : "";
+    const contactLine = [phonePart, wppPart].filter(Boolean).join(" | ");
+    
+    const emailPart = brand.email ? `📧 ${brand.email}` : "";
+
+    return `
+📍 ${brand.address}
+${contactLine}
+${emailPart}
+`.trim();
 };
 
 /**
@@ -68,8 +106,9 @@ const CTAS: Record<CopyTone, string[]> = {
 export const generateSmartContent = async (
     topicId: string, 
     format: SocialFormat,
-    customTopicText?: string,
-    tone: CopyTone = 'TRADICIONAL'
+    customTopicText: string | undefined,
+    tone: CopyTone = 'TRADICIONAL',
+    brand: BrandInfo
 ): Promise<{ copy: string, reelScript?: ReelScript, hashtags: string }> => {
     
     // Simulate network delay for "AI feel"
@@ -85,18 +124,23 @@ export const generateSmartContent = async (
 
     // 2. Select Components based on Tone
     const hook = HOOKS[tone][Math.floor(Math.random() * HOOKS[tone].length)];
+    const bodyFiller = BODY_DEVELOPMENT[tone][Math.floor(Math.random() * BODY_DEVELOPMENT[tone].length)];
     const valueStatement = VALUES_CLOSERS[Math.floor(Math.random() * VALUES_CLOSERS.length)];
     const cta = CTAS[tone][Math.floor(Math.random() * CTAS[tone].length)];
 
-    // 3. Assemble Copy (Builder Pattern)
-    // Structure: Hook + Core Message + Values/Tradition + CTA
-    let finalCopy = `${hook}\n\n${coreMessage}\n\n${valueStatement}\n👉 ${cta}`;
-
+    // 3. Assemble Copy (Longer Structure)
+    // Structure: Hook -> Core Message -> Body Expansion -> Values -> CTA -> Footer -> Hashtags
+    
     // Hashtags
     const categoryTag = topicId === 'custom_topic' ? 'Novedades' : topic.category.replace(/\s+/g, '');
     const hashtags = `#FarmaciaPastor #Cafayate #Salud #${categoryTag} #Bienestar #Tradicion`;
+    
+    // Contact Info Footer
+    const footer = getContactFooter(brand);
 
-    // Script Logic (remains similar but could be enhanced)
+    const finalCopy = `${hook}\n\n${coreMessage}\n\n${bodyFiller}\n\n${valueStatement}\n\n👉 ${cta}\n\n---\n${footer}\n\n${hashtags}`;
+
+    // Script Logic
     let script: ReelScript | undefined = undefined;
     const titleToUse = (topicId === 'custom_topic' && customTopicText) ? customTopicText : topic.title;
 
@@ -123,6 +167,14 @@ export const generateSmartContent = async (
                 },
                 {
                     sceneNumber: 3,
+                    durationSec: 5,
+                    shotType: "Plano medio / Acción",
+                    onScreenText: "Info importante",
+                    voiceOver: bodyFiller,
+                    actions: "Interactuando con un cliente o mostrando variedad de stock."
+                },
+                {
+                    sceneNumber: 4,
                     durationSec: 4,
                     shotType: "Plano medio",
                     onScreenText: "Farmacia Pastor",
@@ -135,8 +187,8 @@ export const generateSmartContent = async (
     }
 
     return {
-        copy: finalCopy,
-        hashtags,
+        copy: finalCopy, // Contains everything
+        hashtags,        // Returned separately just in case, but already in copy
         reelScript: script
     };
 };

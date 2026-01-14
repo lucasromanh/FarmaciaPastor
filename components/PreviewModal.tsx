@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlannedPost } from '../types';
+import { loadFromStorage } from '../lib/storage';
 
 interface Props {
     post: PlannedPost;
@@ -7,6 +8,25 @@ interface Props {
 }
 
 export const PreviewModal: React.FC<Props> = ({ post, onClose }) => {
+    // If post has a saved cover, start with it. Otherwise no cover (-1)
+    const [activeCover, setActiveCover] = useState<string | null>(post.coverImage || null);
+    
+    // Legacy support: Load all covers to allow swapping if needed, though strictly we should stick to the saved one
+    const [availableCovers, setAvailableCovers] = useState<string[]>([]);
+
+    useEffect(() => {
+        setAvailableCovers(loadFromStorage('fp_covers_v1', []));
+    }, []);
+
+    const toggleCover = () => {
+        if (activeCover) {
+            setActiveCover(null); // Turn off
+        } else {
+            // If post has a specific cover, restore it, otherwise pick first available
+            setActiveCover(post.coverImage || availableCovers[0] || null);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div 
@@ -20,7 +40,17 @@ export const PreviewModal: React.FC<Props> = ({ post, onClose }) => {
                         <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">FP</div>
                         <span className="font-semibold text-sm">farmacia.pastor</span>
                     </div>
-                    <button onClick={onClose} className="text-gray-500 text-xl">×</button>
+                    <div className="flex items-center gap-2">
+                        {(availableCovers.length > 0 || post.coverImage) && (
+                            <button 
+                                onClick={toggleCover}
+                                className={`text-xs px-2 py-1 rounded font-bold transition-colors ${activeCover ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'}`}
+                            >
+                                {activeCover ? 'Ocultar Portada' : 'Ver Portada'}
+                            </button>
+                        )}
+                        <button onClick={onClose} className="text-gray-500 text-xl hover:text-red-500">×</button>
+                    </div>
                 </div>
 
                 {/* Content Area */}
@@ -31,7 +61,7 @@ export const PreviewModal: React.FC<Props> = ({ post, onClose }) => {
                         post.mediaType === 'video' ? (
                             <video 
                                 src={post.generatedImageUrl} 
-                                controls 
+                                controls={!activeCover} // Hide controls if cover is overlaying
                                 autoPlay 
                                 loop 
                                 className="w-full h-full object-cover" 
@@ -50,9 +80,16 @@ export const PreviewModal: React.FC<Props> = ({ post, onClose }) => {
                         </div>
                     )}
 
-                    {/* Format Overlays */}
-                    {post.format === 'REEL' && (
-                        <div className="absolute inset-0 flex flex-col justify-end p-4 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none">
+                    {/* COVER OVERLAY */}
+                    {activeCover && (
+                        <div className="absolute inset-0 z-20 pointer-events-none">
+                            <img src={activeCover} className="w-full h-full object-fill" alt="Cover Overlay" />
+                        </div>
+                    )}
+
+                    {/* Format Overlays (Reel UI fake) - Only if no cover active to avoid clutter */}
+                    {post.format === 'REEL' && !activeCover && (
+                        <div className="absolute inset-0 flex flex-col justify-end p-4 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none z-10">
                             <div className="flex items-end gap-2 text-white mb-8">
                                 <div className="space-y-2">
                                     <div className="font-bold text-sm flex items-center gap-1">
@@ -64,19 +101,10 @@ export const PreviewModal: React.FC<Props> = ({ post, onClose }) => {
                                     </div>
                                 </div>
                             </div>
-                            {/* Fake UI Reel */}
                             <div className="absolute right-2 bottom-20 flex flex-col gap-4 items-center text-white">
                                 <div className="flex flex-col items-center"><span className="text-xl">♥</span><span className="text-[10px]">1.2k</span></div>
                                 <div className="flex flex-col items-center"><span className="text-xl">💬</span><span className="text-[10px]">34</span></div>
                                 <div className="flex flex-col items-center"><span className="text-xl">✈</span></div>
-                            </div>
-                        </div>
-                    )}
-
-                    {post.format === 'HISTORIA' && (
-                        <div className="absolute top-4 left-0 w-full px-2 flex gap-1 z-10">
-                            <div className="h-0.5 bg-white/50 flex-1 rounded-full overflow-hidden">
-                                <div className="h-full bg-white w-1/3"></div>
                             </div>
                         </div>
                     )}
@@ -98,7 +126,7 @@ export const PreviewModal: React.FC<Props> = ({ post, onClose }) => {
                 )}
             </div>
             
-            {/* Side Panel for Script if present (Desktop) */}
+            {/* Side Panel for Script */}
             {post.reelScript && (
                  <div className="hidden lg:block ml-4 bg-white rounded-xl p-6 w-80 h-[80vh] overflow-y-auto">
                     <h3 className="font-bold text-lg mb-4 text-primary">Guion del Reel</h3>

@@ -69,7 +69,7 @@ const App: React.FC = () => {
             />
             
             <main>
-                {view === 'dashboard' && <Dashboard paletteIndex={paletteIndex} />}
+                {view === 'dashboard' && <Dashboard paletteIndex={paletteIndex} brandInfo={brandInfo} />}
                 {view === 'settings' && (
                     <Settings 
                         brandInfo={brandInfo}

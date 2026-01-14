@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlannedPost, SocialFormat, ReelScene, CopyTone } from '../types';
+import { PlannedPost, SocialFormat, ReelScene, CopyTone, BrandInfo } from '../types';
 import { TOPICS } from '../content/topics';
 import { generateSmartContent, suggestNextDate, generatePublicAIImage } from '../lib/aiFree';
 import { generateFlyerImage } from '../lib/flyerCanvas';
 import { PALETTES } from '../brand/palettes';
+import { loadFromStorage } from '../lib/storage';
 
 interface Props {
     lastDate: string;
     selectedDate?: string;
     onSave: (post: PlannedPost) => void;
     paletteIndex: number;
+    postToEdit?: PlannedPost | null;
+    onCancelEdit?: () => void;
+    brandInfo: BrandInfo;
 }
 
-export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, paletteIndex }) => {
+export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, paletteIndex, postToEdit, onCancelEdit, brandInfo }) => {
     const suggestedDate = suggestNextDate(lastDate);
     
     // Form Inputs
@@ -29,6 +33,25 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
     // UI Effects
     const [highlightForm, setHighlightForm] = useState(false);
     
+    // Draft State
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [imageLoading, setImageLoading] = useState(false); // New state for image loader
+    const [draft, setDraft] = useState<PlannedPost | null>(null);
+    
+    // Covers
+    const [availableCovers, setAvailableCovers] = useState<string[]>([]);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const dateInputRef = useRef<HTMLInputElement>(null);
+
+    // --- EFFECTS ---
+    
+    // Load Covers
+    useEffect(() => {
+        setAvailableCovers(loadFromStorage('fp_covers_v1', []));
+    }, [draft]); // Reload when draft opens/changes to ensure freshness
+
+    // Highlight when clicking calendar
     useEffect(() => {
         if (selectedDate) {
             setDate(selectedDate);
@@ -37,12 +60,17 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
         }
     }, [selectedDate]);
 
-    // Draft State
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [imageLoading, setImageLoading] = useState(false); // New state for image loader
-    const [draft, setDraft] = useState<PlannedPost | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const dateInputRef = useRef<HTMLInputElement>(null);
+    // Populate form when editing
+    useEffect(() => {
+        if (postToEdit) {
+            setDraft(postToEdit);
+            setDate(postToEdit.date);
+            // We don't set initialFormat/Topic here because the Draft view takes over immediately
+        } else {
+            setDraft(null); // Reset if edit mode is cleared externally
+        }
+    }, [postToEdit]);
+
 
     // --- Helpers ---
     const getTopicTitle = () => {
@@ -52,18 +80,18 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
 
     const isCustomAndEmpty = selectedTopicId === 'custom_topic' && !customTopicText.trim();
 
-    // --- 3 CREATION PATHS ---
+    // --- 3 CREATION PATHS (Only for New Posts) ---
 
     // 1. Full AI Generation
     const handleFullAuto = async () => {
         if (isCustomAndEmpty) return;
         setIsGenerating(true);
-        setImageLoading(true); // Start image loading expectation
+        setImageLoading(true);
 
         const title = getTopicTitle();
         
         // Generate Text & Script with TONE
-        const content = await generateSmartContent(selectedTopicId, initialFormat, customTopicText, selectedTone);
+        const content = await generateSmartContent(selectedTopicId, initialFormat, customTopicText, selectedTone, brandInfo);
         
         // Generate REAL AI Image
         const imageUrl = generatePublicAIImage(title, initialFormat);
@@ -84,7 +112,6 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
 
         setDraft(newPost);
         setIsGenerating(false);
-        // Note: imageLoading stays true until the <img> onLoad fires
     };
 
     // 2. Upload Content
@@ -94,7 +121,7 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
         const title = getTopicTitle();
 
         // Generate Text ONLY (AI)
-        const content = await generateSmartContent(selectedTopicId, initialFormat, customTopicText, selectedTone);
+        const content = await generateSmartContent(selectedTopicId, initialFormat, customTopicText, selectedTone, brandInfo);
 
         const newPost: PlannedPost = {
             id: Date.now().toString(),
@@ -160,7 +187,7 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
         if (!draft) return;
         setIsGenerating(true);
         // Uses currently selected tone
-        const content = await generateSmartContent(selectedTopicId, draft.format, customTopicText, selectedTone);
+        const content = await generateSmartContent(selectedTopicId, draft.format, customTopicText, selectedTone, brandInfo);
         setDraft({ ...draft, copy: content.copy, hashtags: content.hashtags });
         setIsGenerating(false);
     };
@@ -178,7 +205,7 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
     const handleGenerateScriptOnly = async () => {
         if (!draft) return;
         setIsGenerating(true);
-        const content = await generateSmartContent(selectedTopicId, 'REEL', customTopicText, selectedTone);
+        const content = await generateSmartContent(selectedTopicId, 'REEL', customTopicText, selectedTone, brandInfo);
         if (content.reelScript) {
             setDraft({ ...draft, reelScript: content.reelScript });
         }
@@ -230,37 +257,59 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
         if (!draft) return;
         onSave({ ...draft, status: approved ? 'APPROVED' : 'PLANNED' });
         setDraft(null);
-        if (!selectedDate) {
+        if (!postToEdit && !selectedDate) {
              setDate(suggestNextDate(draft.date));
+        }
+    };
+    
+    const handleDiscard = () => {
+        setDraft(null);
+        if (postToEdit && onCancelEdit) {
+            onCancelEdit();
         }
     };
 
     // --- RENDER DRAFT EDITOR ---
     if (draft) {
         return (
-            <div className="bg-white p-6 rounded-xl shadow-lg border-2 border-primary/10 mb-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className={`bg-white p-6 rounded-xl shadow-lg border-2 mb-8 animate-in fade-in slide-in-from-bottom-4 ${postToEdit ? 'border-orange-200 ring-2 ring-orange-100' : 'border-primary/10'}`}>
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
                     <div>
-                        <h2 className="text-xl font-bold text-primary">Editor de Publicación</h2>
+                        <h2 className="text-xl font-bold text-primary">
+                            {postToEdit ? '✏️ Editando Publicación' : 'Editor de Publicación'}
+                        </h2>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                             <span>Tema:</span>
-                            <span className="font-bold text-gray-700 bg-gray-100 px-2 rounded">{draft.theme}</span>
+                             <input 
+                                type="text" 
+                                value={draft.theme}
+                                onChange={(e) => setDraft({...draft, theme: e.target.value})}
+                                className="font-bold text-gray-700 bg-gray-50 px-2 py-0.5 rounded border border-transparent hover:border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            />
                         </div>
                     </div>
                     
-                    {/* Format Badge */}
-                    <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border">
-                        <span className="text-xs font-bold text-gray-400 uppercase ml-2">Formato:</span>
-                        <select 
-                            value={draft.format}
-                            onChange={(e) => setDraft({...draft, format: e.target.value as SocialFormat})}
-                            className="bg-white border-gray-200 text-primary font-bold text-sm py-1 pl-2 pr-8 rounded focus:ring-2 focus:ring-primary outline-none cursor-pointer"
-                        >
-                            <option value="POST">POST (Cuadrado)</option>
-                            <option value="REEL">REEL (Video Vertical)</option>
-                            <option value="HISTORIA">HISTORIA (Vertical)</option>
-                        </select>
+                    {/* Date and Format */}
+                    <div className="flex items-center gap-2">
+                         <input 
+                            type="date" 
+                            value={draft.date}
+                            onChange={(e) => setDraft({...draft, date: e.target.value})}
+                            className="bg-white border border-gray-200 text-gray-700 font-bold text-sm py-1 px-2 rounded focus:ring-2 focus:ring-primary outline-none"
+                        />
+
+                        <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border">
+                            <select 
+                                value={draft.format}
+                                onChange={(e) => setDraft({...draft, format: e.target.value as SocialFormat})}
+                                className="bg-white border-gray-200 text-primary font-bold text-sm py-1 pl-2 pr-8 rounded focus:ring-2 focus:ring-primary outline-none cursor-pointer"
+                            >
+                                <option value="POST">POST</option>
+                                <option value="REEL">REEL</option>
+                                <option value="HISTORIA">STORY</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -268,7 +317,7 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
                     {/* LEFT COLUMN: Visuals */}
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                            <label className="text-xs font-bold text-gray-500 uppercase">Multimedia</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase">Multimedia y Portada</label>
                             <input 
                                 type="file" 
                                 ref={fileInputRef} 
@@ -304,6 +353,7 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
                                 </div>
                             )}
 
+                            {/* Base Media */}
                             {draft.generatedImageUrl ? (
                                 draft.mediaType === 'video' ? (
                                     <video src={draft.generatedImageUrl} controls className="w-full h-full object-cover" />
@@ -323,7 +373,41 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
                                     </span>
                                 </div>
                             )}
+
+                            {/* COVER OVERLAY */}
+                            {draft.coverImage && (
+                                <div className="absolute inset-0 z-10 pointer-events-none">
+                                    <img src={draft.coverImage} alt="Cover Overlay" className="w-full h-full object-fill" />
+                                </div>
+                            )}
                         </div>
+
+                        {/* COVER SELECTOR */}
+                        {availableCovers.length > 0 && (
+                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">Seleccionar Portada (Overlay)</label>
+                                <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                                    <button 
+                                        onClick={() => setDraft({...draft, coverImage: undefined})}
+                                        className={`shrink-0 w-12 h-20 flex items-center justify-center border-2 rounded text-[10px] font-bold transition-all
+                                            ${!draft.coverImage ? 'border-primary bg-white text-primary' : 'border-gray-200 text-gray-400 hover:bg-gray-100'}`}
+                                    >
+                                        Sin
+                                    </button>
+                                    {availableCovers.map((cover, idx) => (
+                                        <button 
+                                            key={idx}
+                                            onClick={() => setDraft({...draft, coverImage: cover})}
+                                            className={`shrink-0 w-12 h-20 border-2 rounded overflow-hidden transition-all relative
+                                                ${draft.coverImage === cover ? 'border-primary ring-1 ring-primary' : 'border-transparent hover:border-gray-300'}`}
+                                        >
+                                            <img src={cover} className="w-full h-full object-cover" alt="Cover opt" />
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[9px] text-gray-400 mt-1 italic text-right">Gestionar en "Moldes de Portada" →</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* RIGHT COLUMN: Text & Details */}
@@ -376,7 +460,7 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
                 </div>
 
                 {/* FULL WIDTH SCRIPT EDITOR */}
-                {draft.reelScript && (
+                {(draft.format === 'REEL' || draft.reelScript) && (
                     <div className="bg-purple-50 p-6 rounded-xl border border-purple-100 mb-8 shadow-sm">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-purple-200 pb-4 gap-4">
                             <div>
@@ -394,144 +478,160 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
                             </button>
                         </div>
                         
-                        {/* SETUP SECTION */}
-                        <div className="mb-6 bg-white p-4 rounded-lg border border-purple-100">
-                            <label className="text-xs font-bold text-purple-800 uppercase block mb-2">
-                                🛠️ Setup / Antes de Grabar (Contexto)
-                            </label>
-                            <textarea
-                                placeholder="Ej: Usar trípode, luz frente a ventana, preparar el producto X sobre la mesa..."
-                                value={draft.reelScript.setup || ''}
-                                onChange={(e) => setDraft({...draft, reelScript: {...draft.reelScript!, setup: e.target.value}})}
-                                className="w-full p-3 border border-gray-300 rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 outline-none h-20 resize-none"
-                            />
-                        </div>
-
-                        {/* GLOBAL HOOK & CTA */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Gancho (Texto en Pantalla)</label>
-                                <input 
-                                    type="text" 
-                                    value={draft.reelScript.hook}
-                                    onChange={(e) => setDraft({...draft, reelScript: {...draft.reelScript!, hook: e.target.value}})}
-                                    className="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none"
-                                />
+                        {/* If script object doesn't exist but it's a REEL, show a button to init it manually if AI wasn't used */}
+                        {!draft.reelScript && (
+                            <div className="text-center py-4">
+                                <button 
+                                    onClick={() => setDraft({...draft, reelScript: { hook: '', scenes: [], cta: '' }})}
+                                    className="bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded font-bold"
+                                >
+                                    Crear Guion Manualmente
+                                </button>
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">CTA (Llamado a la acción final)</label>
-                                <input 
-                                    type="text" 
-                                    value={draft.reelScript.cta}
-                                    onChange={(e) => setDraft({...draft, reelScript: {...draft.reelScript!, cta: e.target.value}})}
-                                    className="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none"
-                                />
-                            </div>
-                        </div>
+                        )}
 
-                        {/* SCENES */}
-                        <div className="space-y-4">
-                            {draft.reelScript.scenes.map((scene, idx) => (
-                                <div key={idx} className="bg-white p-4 rounded-xl border-l-4 border-purple-400 shadow-sm relative">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <span className="text-sm font-bold bg-purple-100 text-purple-900 px-3 py-1 rounded-full border border-purple-200">
-                                            Escena {scene.sceneNumber}
-                                        </span>
-                                        <div className="flex items-center gap-3">
-                                             <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded border">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase">Duración:</label>
-                                                <input 
-                                                    type="number" 
-                                                    value={scene.durationSec}
-                                                    onChange={(e) => updateScene(idx, 'durationSec', Number(e.target.value))}
-                                                    className="w-12 p-1 bg-white text-gray-900 text-center font-bold text-sm outline-none rounded border border-gray-200" 
-                                                />
-                                                <span className="text-xs text-gray-500">seg</span>
-                                            </div>
-                                            <button onClick={() => removeScene(idx)} className="text-red-400 hover:text-red-600 font-bold px-2 py-1">Eliminar</button>
-                                        </div>
+                        {draft.reelScript && (
+                            <>
+                                {/* SETUP SECTION */}
+                                <div className="mb-6 bg-white p-4 rounded-lg border border-purple-100">
+                                    <label className="text-xs font-bold text-purple-800 uppercase block mb-2">
+                                        🛠️ Setup / Antes de Grabar (Contexto)
+                                    </label>
+                                    <textarea
+                                        placeholder="Ej: Usar trípode, luz frente a ventana, preparar el producto X sobre la mesa..."
+                                        value={draft.reelScript.setup || ''}
+                                        onChange={(e) => setDraft({...draft, reelScript: {...draft.reelScript!, setup: e.target.value}})}
+                                        className="w-full p-3 border border-gray-300 rounded text-sm bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 outline-none h-20 resize-none"
+                                    />
+                                </div>
+
+                                {/* GLOBAL HOOK & CTA */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Gancho (Texto en Pantalla)</label>
+                                        <input 
+                                            type="text" 
+                                            value={draft.reelScript.hook}
+                                            onChange={(e) => setDraft({...draft, reelScript: {...draft.reelScript!, hook: e.target.value}})}
+                                            className="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none"
+                                        />
                                     </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Visuals */}
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Encuadre / Plano</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Ej: Plano medio, Detalle..."
-                                                    value={scene.shotType}
-                                                    onChange={(e) => updateScene(idx, 'shotType', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none" 
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Acción Visual (Qué pasa)</label>
-                                                <textarea 
-                                                    placeholder="Descripción de la acción..."
-                                                    value={scene.actions}
-                                                    onChange={(e) => updateScene(idx, 'actions', e.target.value)}
-                                                    rows={2}
-                                                    className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none resize-none" 
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Audio */}
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Texto en Pantalla (Opcional)</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Títulos..."
-                                                    value={scene.onScreenText}
-                                                    onChange={(e) => updateScene(idx, 'onScreenText', e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none" 
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Audio / Voz en Off (Qué se dice)</label>
-                                                <textarea 
-                                                    placeholder="Guion hablado..."
-                                                    value={scene.voiceOver}
-                                                    onChange={(e) => updateScene(idx, 'voiceOver', e.target.value)}
-                                                    rows={2}
-                                                    className="w-full p-2 border border-purple-200 bg-purple-50/50 text-purple-900 rounded text-sm italic focus:ring-1 focus:ring-purple-500 outline-none resize-none" 
-                                                />
-                                            </div>
-                                        </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 uppercase block mb-1">CTA (Llamado a la acción final)</label>
+                                        <input 
+                                            type="text" 
+                                            value={draft.reelScript.cta}
+                                            onChange={(e) => setDraft({...draft, reelScript: {...draft.reelScript!, cta: e.target.value}})}
+                                            className="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none"
+                                        />
                                     </div>
                                 </div>
-                            ))}
-                            <button 
-                                onClick={addScene}
-                                className="w-full py-3 border-2 border-dashed border-purple-300 text-purple-600 font-bold rounded-lg hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <span className="text-xl">+</span> Agregar Nueva Escena
-                            </button>
-                        </div>
+
+                                {/* SCENES */}
+                                <div className="space-y-4">
+                                    {draft.reelScript.scenes.map((scene, idx) => (
+                                        <div key={idx} className="bg-white p-4 rounded-xl border-l-4 border-purple-400 shadow-sm relative">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <span className="text-sm font-bold bg-purple-100 text-purple-900 px-3 py-1 rounded-full border border-purple-200">
+                                                    Escena {scene.sceneNumber}
+                                                </span>
+                                                <div className="flex items-center gap-3">
+                                                     <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded border">
+                                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Duración:</label>
+                                                        <input 
+                                                            type="number" 
+                                                            value={scene.durationSec}
+                                                            onChange={(e) => updateScene(idx, 'durationSec', Number(e.target.value))}
+                                                            className="w-12 p-1 bg-white text-gray-900 text-center font-bold text-sm outline-none rounded border border-gray-200" 
+                                                        />
+                                                        <span className="text-xs text-gray-500">seg</span>
+                                                    </div>
+                                                    <button onClick={() => removeScene(idx)} className="text-red-400 hover:text-red-600 font-bold px-2 py-1">Eliminar</button>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Visuals */}
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Encuadre / Plano</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Ej: Plano medio, Detalle..."
+                                                            value={scene.shotType}
+                                                            onChange={(e) => updateScene(idx, 'shotType', e.target.value)}
+                                                            className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Acción Visual (Qué pasa)</label>
+                                                        <textarea 
+                                                            placeholder="Descripción de la acción..."
+                                                            value={scene.actions}
+                                                            onChange={(e) => updateScene(idx, 'actions', e.target.value)}
+                                                            rows={2}
+                                                            className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none resize-none" 
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Audio */}
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Texto en Pantalla (Opcional)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Títulos..."
+                                                            value={scene.onScreenText}
+                                                            onChange={(e) => updateScene(idx, 'onScreenText', e.target.value)}
+                                                            className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded text-sm focus:ring-1 focus:ring-purple-500 outline-none" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Audio / Voz en Off (Qué se dice)</label>
+                                                        <textarea 
+                                                            placeholder="Guion hablado..."
+                                                            value={scene.voiceOver}
+                                                            onChange={(e) => updateScene(idx, 'voiceOver', e.target.value)}
+                                                            rows={2}
+                                                            className="w-full p-2 border border-purple-200 bg-purple-50/50 text-purple-900 rounded text-sm italic focus:ring-1 focus:ring-purple-500 outline-none resize-none" 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button 
+                                        onClick={addScene}
+                                        className="w-full py-3 border-2 border-dashed border-purple-300 text-purple-600 font-bold rounded-lg hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <span className="text-xl">+</span> Agregar Nueva Escena
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
                 {/* Footer Actions */}
                 <div className="flex gap-3 mt-8 pt-4 border-t sticky bottom-0 bg-white z-10">
                     <button 
-                        onClick={() => setDraft(null)}
+                        onClick={handleDiscard}
                         className="flex-1 py-3 px-4 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
                     >
-                        Descartar
+                        {postToEdit ? 'Cancelar Edición' : 'Descartar'}
                     </button>
                     <button 
                         onClick={() => handleConfirm(false)}
                         className="flex-1 py-3 px-4 rounded-lg border border-primary text-primary font-medium hover:bg-green-50 transition-colors"
                     >
-                        Guardar Pendiente
+                        {postToEdit ? 'Guardar Cambios' : 'Guardar Pendiente'}
                     </button>
                     <button 
                         onClick={() => handleConfirm(true)}
                         className="flex-1 py-3 px-4 rounded-lg bg-primary text-white font-bold shadow-md hover:shadow-lg hover:bg-green-800 transition-all"
                     >
-                        ✓ Aprobar
+                        ✓ {postToEdit ? 'Guardar y Aprobar' : 'Aprobar'}
                     </button>
                 </div>
             </div>
