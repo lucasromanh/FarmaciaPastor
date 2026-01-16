@@ -3,6 +3,8 @@ import { PlannedPost, SocialFormat, ReelScene, CopyTone, BrandInfo } from '../ty
 import { TOPICS } from '../content/topics';
 import { generateSmartContent, suggestNextDate, generatePublicAIImage } from '../lib/aiFree';
 import { generateFlyerImage } from '../lib/flyerCanvas';
+import { addBrandWatermark, loadImageWithTimeout } from '../lib/imageProcessor';
+import { Modal, LoadingModal } from './Modal';
 import { PALETTES } from '../brand/palettes';
 import { loadFromStorage } from '../lib/storage';
 
@@ -35,8 +37,18 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
     
     // Draft State
     const [isGenerating, setIsGenerating] = useState(false);
-    const [imageLoading, setImageLoading] = useState(false); // New state for image loader
+    const [imageLoading, setImageLoading] = useState(false);
     const [draft, setDraft] = useState<PlannedPost | null>(null);
+    
+    // Modals state
+    const [modalState, setModalState] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'info' | 'error' | 'warning' | 'success';
+    }>({ isOpen: false, title: '', message: '', type: 'info' });
+    
+    const [loadingMessage, setLoadingMessage] = useState('');
     
     // Covers
     const [availableCovers, setAvailableCovers] = useState<string[]>([]);
@@ -87,31 +99,51 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
         if (isCustomAndEmpty) return;
         setIsGenerating(true);
         setImageLoading(true);
+        setLoadingMessage('Generando imagen con IA...');
 
-        const title = getTopicTitle();
-        
-        // Generate Text & Script with TONE
-        const content = await generateSmartContent(selectedTopicId, initialFormat, customTopicText, selectedTone, brandInfo);
-        
-        // Generate REAL AI Image
-        const imageUrl = generatePublicAIImage(title, initialFormat);
+        try {
+            const title = getTopicTitle();
+            
+            // Generate Text & Script with TONE
+            const content = await generateSmartContent(selectedTopicId, initialFormat, customTopicText, selectedTone, brandInfo);
+            
+            // Generate REAL AI Image (base)
+            const baseImageUrl = generatePublicAIImage(title, initialFormat);
+            
+            // Esperar a que cargue y agregar marca (30 segundos timeout)
+            await loadImageWithTimeout(baseImageUrl, 30000);
+            const finalImageUrl = await addBrandWatermark(baseImageUrl, brandInfo);
 
-        const newPost: PlannedPost = {
-            id: Date.now().toString(),
-            date,
-            format: initialFormat,
-            theme: title,
-            objective: 'IA Generativa',
-            copy: content.copy,
-            hashtags: content.hashtags,
-            reelScript: content.reelScript,
-            status: 'PLANNED',
-            generatedImageUrl: imageUrl,
-            mediaType: 'image'
-        };
+            const newPost: PlannedPost = {
+                id: Date.now().toString(),
+                date,
+                format: initialFormat,
+                theme: title,
+                objective: 'IA Generativa',
+                copy: content.copy,
+                hashtags: content.hashtags,
+                reelScript: content.reelScript,
+                status: 'PLANNED',
+                generatedImageUrl: finalImageUrl,
+                mediaType: 'image'
+            };
 
-        setDraft(newPost);
-        setIsGenerating(false);
+            setDraft(newPost);
+            setIsGenerating(false);
+            setImageLoading(false);
+            setLoadingMessage('');
+        } catch (error: any) {
+            console.error('Error en generación:', error);
+            setModalState({
+                isOpen: true,
+                title: 'Problema con la imagen',
+                message: error.message || 'La imagen tardó demasiado en cargar (más de 30 segundos). Puedes intentar de nuevo o subir una imagen propia.',
+                type: 'warning'
+            });
+            setIsGenerating(false);
+            setImageLoading(false);
+            setLoadingMessage('');
+        }
     };
 
     // 2. Upload Content
@@ -193,12 +225,35 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
     };
     
     // Regenerate Image ONLY
-    const handleRegenerateImage = () => {
+    const handleRegenerateImage = async () => {
         if (!draft) return;
-        setImageLoading(true); // Trigger loader
-        const title = getTopicTitle();
-        const newImageUrl = generatePublicAIImage(title, draft.format);
-        setDraft({ ...draft, generatedImageUrl: newImageUrl });
+        setImageLoading(true);
+        setLoadingMessage('Generando nueva imagen...');
+        
+        try {
+            const title = getTopicTitle();
+            const baseImageUrl = generatePublicAIImage(title, draft.format);
+            
+            // Esperar a que la imagen cargue (30 segundos timeout)
+            await loadImageWithTimeout(baseImageUrl, 30000);
+            
+            // Agregar marca de agua con logo/nombre
+            const finalImageUrl = await addBrandWatermark(baseImageUrl, brandInfo);
+            
+            setDraft({ ...draft, generatedImageUrl: finalImageUrl });
+            setImageLoading(false);
+            setLoadingMessage('');
+        } catch (error: any) {
+            console.error('Error generando imagen:', error);
+            setModalState({
+                isOpen: true,
+                title: 'Problema con la imagen',
+                message: error.message || 'La imagen tardó más de 30 segundos. Intenta nuevamente o sube una imagen propia.',
+                type: 'warning'
+            });
+            setImageLoading(false);
+            setLoadingMessage('');
+        }
     };
 
     // Generate Script Only
@@ -640,11 +695,12 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
 
     // --- RENDER INITIAL SELECTION ---
     return (
-        <div 
-            id="planner-form" 
-            className={`bg-white p-6 rounded-xl shadow-sm border transition-all duration-500 mb-8 scroll-mt-24 
-                ${highlightForm ? 'border-yellow-400 ring-2 ring-yellow-200 shadow-yellow-100 scale-[1.01]' : 'border-gray-100'}`}
-        >
+        <>
+            <div 
+                id="planner-form" 
+                className={`bg-white p-6 rounded-xl shadow-sm border transition-all duration-500 mb-8 scroll-mt-24 
+                    ${highlightForm ? 'border-yellow-400 ring-2 ring-yellow-200 shadow-yellow-100 scale-[1.01]' : 'border-gray-100'}`}
+            >
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-primary">Planificar Nuevo Contenido</h2>
                 {highlightForm && <span className="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded animate-pulse">Fecha Seleccionada</span>}
@@ -792,6 +848,21 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
                     🤖 Generando contenido e imagen...
                 </div>
             )}
-        </div>
+            </div>
+            
+            {/* Modals */}
+            <Modal
+                isOpen={modalState.isOpen}
+                onClose={() => setModalState({ ...modalState, isOpen: false })}
+                title={modalState.title}
+                message={modalState.message}
+                type={modalState.type}
+            />
+            
+            <LoadingModal 
+                isOpen={loadingMessage !== ''}
+                message={loadingMessage}
+            />
+        </>
     );
 };

@@ -9,6 +9,7 @@ import { BriefSection } from '../components/BriefSection';
 import { PendingList } from '../components/PendingList';
 import { CoverManager } from '../components/CoverManager';
 import { RecordingPlan } from '../components/RecordingPlan';
+import { ConfirmModal, Modal } from '../components/Modal';
 import { loadFromStorage, saveToStorage, storageKeys } from '../lib/storage';
 import { INITIAL_SCHEDULE } from '../lib/initialData';
 
@@ -28,6 +29,18 @@ export const Dashboard: React.FC<Props> = ({ paletteIndex, brandInfo }) => {
     
     // Edit Mode State
     const [editingPost, setEditingPost] = useState<PlannedPost | null>(null);
+    
+    // Confirm delete modal
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; postId: string | null }>({ 
+        isOpen: false, 
+        postId: null 
+    });
+    
+    // Success modal
+    const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({
+        isOpen: false,
+        message: ''
+    });
 
     useEffect(() => {
         let stored = loadFromStorage(storageKeys.KEY_POSTS, []);
@@ -52,21 +65,26 @@ export const Dashboard: React.FC<Props> = ({ paletteIndex, brandInfo }) => {
         } else {
             updatedPosts = [...posts, post];
         }
-
+        
         setPosts(updatedPosts);
         saveToStorage(storageKeys.KEY_POSTS, updatedPosts);
-        
-        // Reset states
-        setSelectedDateForForm(undefined); 
+        setSelectedDateForForm(undefined);
         setEditingPost(null);
     };
 
     const handleDeletePost = (id: string) => {
-        if (confirm("¿Estás seguro de borrar esta publicación?")) {
-            const updated = posts.filter(p => p.id !== id);
+        setDeleteConfirm({ isOpen: true, postId: id });
+    };
+    
+    const confirmDelete = () => {
+        if (deleteConfirm.postId) {
+            const updated = posts.filter(p => p.id !== deleteConfirm.postId);
             setPosts(updated);
             saveToStorage(storageKeys.KEY_POSTS, updated);
-            if (editingPost?.id === id) setEditingPost(null);
+            if (editingPost?.id === deleteConfirm.postId) setEditingPost(null);
+            
+            setDeleteConfirm({ isOpen: false, postId: null });
+            setSuccessModal({ isOpen: true, message: 'Publicación eliminada correctamente' });
         }
     };
 
@@ -76,6 +94,7 @@ export const Dashboard: React.FC<Props> = ({ paletteIndex, brandInfo }) => {
         );
         setPosts(updated);
         saveToStorage(storageKeys.KEY_POSTS, updated);
+        setSuccessModal({ isOpen: true, message: '¡Publicación aprobada!' });
     };
 
     const handleEditPost = (post: PlannedPost) => {
@@ -183,6 +202,25 @@ export const Dashboard: React.FC<Props> = ({ paletteIndex, brandInfo }) => {
                     onClose={() => setPreviewPost(null)} 
                 />
             )}
+            
+            <ConfirmModal
+                isOpen={deleteConfirm.isOpen}
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteConfirm({ isOpen: false, postId: null })}
+                title="¿Eliminar publicación?"
+                message="Esta acción no se puede deshacer. La publicación será eliminada permanentemente."
+                confirmText="Eliminar"
+                cancelText="Cancelar"
+                type="danger"
+            />
+            
+            <Modal
+                isOpen={successModal.isOpen}
+                onClose={() => setSuccessModal({ isOpen: false, message: '' })}
+                title="¡Éxito!"
+                message={successModal.message}
+                type="success"
+            />
         </div>
     );
 };

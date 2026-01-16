@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { loadFromStorage, saveToStorage } from '../lib/storage';
 import { RecordingPlanItem } from '../types';
+import { ConfirmModal, Modal } from './Modal';
 
 const KEY_CURRENT_PLAN = 'fp_monthly_plan_v1';
 const KEY_PLAN_HISTORY = 'fp_plan_history_v1';
@@ -24,6 +25,18 @@ export const RecordingPlan: React.FC = () => {
     
     // State to track which history item is expanded
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+    
+    // Confirm delete modal
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; itemId: string | null }>({ 
+        isOpen: false, 
+        itemId: null 
+    });
+    
+    // Success modal
+    const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({
+        isOpen: false,
+        message: ''
+    });
 
     useEffect(() => {
         const storedCurrent = loadFromStorage(KEY_CURRENT_PLAN, DEFAULT_PLAN);
@@ -35,6 +48,7 @@ export const RecordingPlan: React.FC = () => {
     const handleSaveCurrent = () => {
         saveToStorage(KEY_CURRENT_PLAN, currentText);
         setIsEditing(false);
+        setSuccessModal({ isOpen: true, message: 'Plan guardado correctamente' });
     };
 
     const handleArchive = () => {
@@ -58,14 +72,21 @@ export const RecordingPlan: React.FC = () => {
         setShowArchiveInput(false);
         setArchiveName('');
         setIsEditing(true); // Auto enter edit mode for new plan
+        setSuccessModal({ isOpen: true, message: '¡Plan archivado exitosamente!' });
     };
 
     const deleteHistoryItem = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation(); // Prevent toggling expand
-        if (window.confirm("¿Estás seguro de eliminar este historial?")) {
-            const newHistory = history.filter(h => h.id !== id);
+        e.stopPropagation();
+        setDeleteConfirm({ isOpen: true, itemId: id });
+    };
+    
+    const confirmDelete = () => {
+        if (deleteConfirm.itemId) {
+            const newHistory = history.filter(h => h.id !== deleteConfirm.itemId);
             setHistory(newHistory);
             saveToStorage(KEY_PLAN_HISTORY, newHistory);
+            setDeleteConfirm({ isOpen: false, itemId: null });
+            setSuccessModal({ isOpen: true, message: 'Historial eliminado' });
         }
     };
 
@@ -194,6 +215,25 @@ export const RecordingPlan: React.FC = () => {
                     </div>
                 </div>
             )}
+            
+            <ConfirmModal
+                isOpen={deleteConfirm.isOpen}
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteConfirm({ isOpen: false, itemId: null })}
+                title="¿Eliminar historial?"
+                message="Esta acción no se puede deshacer. El plan archivado será eliminado permanentemente."
+                confirmText="Eliminar"
+                cancelText="Cancelar"
+                type="danger"
+            />
+            
+            <Modal
+                isOpen={successModal.isOpen}
+                onClose={() => setSuccessModal({ isOpen: false, message: '' })}
+                title="¡Éxito!"
+                message={successModal.message}
+                type="success"
+            />
         </div>
     );
 };

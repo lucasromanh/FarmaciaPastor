@@ -194,8 +194,8 @@ export const generateSmartContent = async (
 };
 
 /**
- * Generates a real AI image URL using the free Pollinations.ai API.
- * Now with improved prompts for better topic relevance
+ * Generates a real AI image URL using multiple free APIs with fallback.
+ * Now with improved prompts for better topic relevance and multiple services
  */
 export const generatePublicAIImage = (topic: string, format: string): string => {
     const width = 1080;
@@ -239,7 +239,18 @@ export const generatePublicAIImage = (topic: string, format: string): string => 
     const styleContext = "professional healthcare setting, bright natural lighting, photorealistic, high quality, clean and modern, warm and welcoming atmosphere, argentina, lifestyle photography";
     
     const finalPrompt = encodeURIComponent(`${enhancedPrompt}, ${styleContext}`);
-    return `https://image.pollinations.ai/prompt/${finalPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`;
+    
+    // Rotar entre múltiples servicios para evitar rate limits
+    const services = [
+        `https://image.pollinations.ai/prompt/${finalPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`,
+        `https://image.pollinations.ai/prompt/${finalPrompt}?width=${width}&height=${height}&seed=${seed + 1}&nologo=true&model=flux-realism`,
+        `https://pollinations.ai/p/${finalPrompt}?width=${width}&height=${height}&seed=${seed + 2}&nologo=true`,
+    ];
+    
+    // Seleccionar servicio aleatorio para balancear la carga
+    const selectedService = services[Math.floor(Math.random() * services.length)];
+    
+    return selectedService;
 };
 
 export const suggestNextDate = (lastDateStr: string): string => {

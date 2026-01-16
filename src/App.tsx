@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrandHeader } from './components/BrandHeader';
 import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
+import { AdBlockerWarning } from './components/AdBlockerWarning';
 import { PALETTES } from './brand/palettes';
 import { DEFAULT_BRAND } from './brand/brand';
 import { loadFromStorage, saveToStorage, storageKeys } from './lib/storage';
@@ -63,6 +64,8 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen font-primary">
+            <AdBlockerWarning />
+            
             <BrandHeader 
                 brand={brandInfo}
                 openSettings={() => setView('settings')} 
