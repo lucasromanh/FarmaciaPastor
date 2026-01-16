@@ -195,6 +195,7 @@ export const generateSmartContent = async (
 
 /**
  * Generates a real AI image URL using the free Pollinations.ai API.
+ * Now with improved prompts for better topic relevance
  */
 export const generatePublicAIImage = (topic: string, format: string): string => {
     const width = 1080;
@@ -203,11 +204,41 @@ export const generatePublicAIImage = (topic: string, format: string): string => 
     // Random seed changes every time this is called
     const seed = Math.floor(Math.random() * 1000000);
 
-    const styleContext = "pharmacy context, medicine, health, wellness, bright lighting, photorealistic, 8k, professional photography, clean composition, bokeh background, warm colors";
-    const cleanTopic = topic.replace(/[^\w\sñáéíóúü]/gi, '');
+    // Mejorar el prompt basado en palabras clave del tema
+    const topicLower = topic.toLowerCase();
+    let enhancedPrompt = topic;
     
-    // Add seed param to force refresh even if prompt is same
-    const finalPrompt = encodeURIComponent(`${cleanTopic}, ${styleContext}`);
+    // Detectar palabras clave y mejorar el contexto visual
+    if (topicLower.includes('hidratación') || topicLower.includes('agua') || topicLower.includes('calor')) {
+        enhancedPrompt = `persona tomando agua, botella de agua fresca con gotas, hidratación saludable, verano, luz natural, estilo de vida saludable`;
+    } else if (topicLower.includes('protector solar') || topicLower.includes('sol')) {
+        enhancedPrompt = `crema protector solar, playa, cuidado de la piel, familia feliz al sol, prevención`;
+    } else if (topicLower.includes('vitamina') || topicLower.includes('suplemento')) {
+        enhancedPrompt = `vitaminas, frutas frescas coloridas, alimentación saludable, bienestar, energía`;
+    } else if (topicLower.includes('gripe') || topicLower.includes('resfr')) {
+        enhancedPrompt = `persona con té caliente, bufanda, cuidado en invierno, comodidad del hogar`;
+    } else if (topicLower.includes('diabetes') || topicLower.includes('glucosa')) {
+        enhancedPrompt = `medidor de glucosa, control de salud, prevención diabetes, estilo de vida saludable`;
+    } else if (topicLower.includes('presión') || topicLower.includes('corazón')) {
+        enhancedPrompt = `tensiómetro, control de presión arterial, salud cardiovascular, prevención`;
+    } else if (topicLower.includes('niño') || topicLower.includes('bebé') || topicLower.includes('pediatr')) {
+        enhancedPrompt = `familia feliz con niños, cuidado infantil, pediatría, amor familiar`;
+    } else if (topicLower.includes('dermocos') || topicLower.includes('piel') || topicLower.includes('crema')) {
+        enhancedPrompt = `productos de cuidado de la piel, rutina de skincare, rostro saludable, belleza natural`;
+    } else if (topicLower.includes('dolor') || topicLower.includes('inflam')) {
+        enhancedPrompt = `persona activa y saludable, ejercicio, bienestar físico, vitalidad`;
+    } else if (topicLower.includes('alergia')) {
+        enhancedPrompt = `flores, primavera, naturaleza, persona feliz al aire libre`;
+    } else if (topicLower.includes('peso') || topicLower.includes('diet')) {
+        enhancedPrompt = `alimentación balanceada, plato saludable, frutas y verduras frescas, bienestar`;
+    } else if (topicLower.includes('farmacia') || topicLower.includes('medicamento')) {
+        enhancedPrompt = `farmacia moderna y acogedora, profesional de salud sonriente, atención al cliente, confianza`;
+    }
+    
+    // Contexto visual profesional para farmacia
+    const styleContext = "professional healthcare setting, bright natural lighting, photorealistic, high quality, clean and modern, warm and welcoming atmosphere, argentina, lifestyle photography";
+    
+    const finalPrompt = encodeURIComponent(`${enhancedPrompt}, ${styleContext}`);
     return `https://image.pollinations.ai/prompt/${finalPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`;
 };
 
