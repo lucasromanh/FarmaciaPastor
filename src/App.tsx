@@ -6,6 +6,7 @@ import { PALETTES } from './brand/palettes';
 import { DEFAULT_BRAND } from './brand/brand';
 import { loadFromStorage, saveToStorage, storageKeys } from './lib/storage';
 import { BrandInfo, BrandPalette } from './types';
+import './lib/diagnostics';
 
 const App: React.FC = () => {
     const [view, setView] = useState<'dashboard' | 'settings'>('dashboard');
