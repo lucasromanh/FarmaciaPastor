@@ -4,6 +4,7 @@ import { TOPICS } from '../content/topics';
 import { generateSmartContent, suggestNextDate, generatePublicAIImage } from '../lib/aiFree';
 import { generateFlyerImage } from '../lib/flyerCanvas';
 import { addBrandWatermark, loadImageWithTimeout } from '../lib/imageProcessor';
+import { uploadToCloudinary } from '../lib/cloudinary';
 import { Modal, LoadingModal } from './Modal';
 import { PALETTES } from '../brand/palettes';
 import { loadFromStorage } from '../lib/storage';
@@ -267,21 +268,34 @@ export const PlannerForm: React.FC<Props> = ({ lastDate, selectedDate, onSave, p
         setIsGenerating(false);
     };
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file && draft) {
-            const objectUrl = URL.createObjectURL(file);
             const isVideo = file.type.startsWith('video/');
-            setImageLoading(false); // Should be instant for local files
             
-            if (!isVideo) {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                   setDraft({ ...draft, generatedImageUrl: reader.result as string, mediaType: 'image' });
-                };
-                reader.readAsDataURL(file);
-            } else {
-                setDraft({ ...draft, generatedImageUrl: objectUrl, mediaType: 'video' });
+            // Mostrar loading
+            setLoadingMessage(isVideo ? 'Subiendo video a la nube...' : 'Subiendo imagen...');
+            
+            try {
+                if (!isVideo) {
+                    // Imágenes: subir a Cloudinary
+                    const cloudinaryUrl = await uploadToCloudinary(file);
+                    setDraft({ ...draft, generatedImageUrl: cloudinaryUrl, mediaType: 'image' });
+                } else {
+                    // Videos: subir a Cloudinary
+                    const cloudinaryUrl = await uploadToCloudinary(file);
+                    setDraft({ ...draft, generatedImageUrl: cloudinaryUrl, mediaType: 'video' });
+                }
+                setLoadingMessage('');
+            } catch (error) {
+                console.error('Error subiendo archivo:', error);
+                setLoadingMessage('');
+                setModalState({
+                    isOpen: true,
+                    title: 'Error al subir',
+                    message: 'No se pudo subir el archivo a la nube. Inténtalo de nuevo.',
+                    type: 'error'
+                });
             }
         }
     };

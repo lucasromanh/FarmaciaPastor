@@ -54,7 +54,9 @@ const setupRealtimeListeners = () => {
         const docRef = doc(db, 'appData', key);
         onSnapshot(docRef, (doc) => {
             if (doc.exists()) {
-                cache[key] = doc.data().data;
+                const newData = doc.data().data;
+                console.log(`🔄 Firestore sync: ${key} actualizado`, newData);
+                cache[key] = newData;
                 // Actualizar localStorage también
                 try {
                     localStorage.setItem(key, JSON.stringify(cache[key]));
@@ -97,6 +99,8 @@ const cleanUndefined = (obj: any): any => {
 // Función para guardar (síncrona con actualización async en background)
 export const saveToStorage = (key: string, data: any) => {
     try {
+        console.log(`💾 Guardando ${key}:`, data);
+        
         // Actualizar cache inmediatamente
         cache[key] = data;
         
@@ -108,9 +112,13 @@ export const saveToStorage = (key: string, data: any) => {
         
         // Actualizar Firestore en background (no bloqueante)
         const docRef = doc(db, 'appData', key);
-        setDoc(docRef, { data: cleanedData, updatedAt: new Date() }).catch(e => {
-            console.error("Error saving to Firestore (background)", e);
-        });
+        setDoc(docRef, { data: cleanedData, updatedAt: new Date() })
+            .then(() => {
+                console.log(`✅ ${key} guardado en Firestore`);
+            })
+            .catch(e => {
+                console.error(`❌ Error saving to Firestore (${key}):`, e);
+            });
     } catch (e) {
         console.error("Error saving to storage", e);
     }

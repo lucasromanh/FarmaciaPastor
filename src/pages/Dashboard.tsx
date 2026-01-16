@@ -10,6 +10,7 @@ import { PendingList } from '../components/PendingList';
 import { CoverManager } from '../components/CoverManager';
 import { RecordingPlan } from '../components/RecordingPlan';
 import { ConfirmModal, Modal } from '../components/Modal';
+import { SyncButton } from '../components/SyncButton';
 import { loadFromStorage, saveToStorage, storageKeys } from '../lib/storage';
 import { INITIAL_SCHEDULE } from '../lib/initialData';
 
@@ -42,16 +43,38 @@ export const Dashboard: React.FC<Props> = ({ paletteIndex, brandInfo }) => {
         message: ''
     });
 
+    // Función para recargar posts (usada por sync manual)
+    const reloadPosts = () => {
+        const stored = loadFromStorage(storageKeys.KEY_POSTS, []);
+        console.log('🔄 Recargando posts:', stored);
+        setPosts(stored);
+    };
+
     useEffect(() => {
+        // Carga inicial
         let stored = loadFromStorage(storageKeys.KEY_POSTS, []);
         
-        // Auto-load initial schedule if empty
-        if (stored.length === 0) {
-            stored = INITIAL_SCHEDULE;
-            saveToStorage(storageKeys.KEY_POSTS, stored);
-        }
+        // Auto-carga de mockups DESACTIVADA - Usuario puede empezar desde cero
+        // if (stored.length === 0) {
+        //     stored = INITIAL_SCHEDULE;
+        //     saveToStorage(storageKeys.KEY_POSTS, stored);
+        // }
         
         setPosts(stored);
+        
+        // Listener para cambios en tiempo real desde otros dispositivos
+        const handleStorageUpdate = (e: CustomEvent) => {
+            if (e.detail.key === storageKeys.KEY_POSTS) {
+                console.log('📱 Sincronización detectada desde otro dispositivo');
+                setPosts(e.detail.data || []);
+            }
+        };
+        
+        window.addEventListener('storage-update', handleStorageUpdate as any);
+        
+        return () => {
+            window.removeEventListener('storage-update', handleStorageUpdate as any);
+        };
     }, []);
 
     const handleSavePost = (post: PlannedPost) => {
@@ -125,6 +148,11 @@ export const Dashboard: React.FC<Props> = ({ paletteIndex, brandInfo }) => {
 
     return (
         <div className="max-w-7xl mx-auto p-4 md:p-6 pb-20">
+            {/* Botón de Sincronización Manual */}
+            <div className="mb-4 flex justify-end">
+                <SyncButton onSync={reloadPosts} />
+            </div>
+            
             {/* Top Info Area: Layout shifts based on Brief Expansion */}
             <div className={`grid gap-6 mb-2 transition-all duration-300 ${briefExpanded ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
                 {/* Payment Card Container - Constrain width if Brief is expanded to avoid ugly stretching */}

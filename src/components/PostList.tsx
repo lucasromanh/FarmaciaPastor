@@ -28,12 +28,35 @@ export const PostList: React.FC<Props> = ({ posts, onPreview, onDelete, onApprov
                             {/* Base Image/Video */}
                             {post.generatedImageUrl ? (
                                 post.mediaType === 'video' ? (
-                                    <video 
-                                        src={post.generatedImageUrl} 
-                                        className="w-full h-full object-cover" 
-                                        muted 
-                                        playsInline
-                                    />
+                                    <div className="relative w-full h-full bg-black flex items-center justify-center">
+                                        <video 
+                                            src={post.generatedImageUrl} 
+                                            className="w-full h-full object-cover" 
+                                            muted 
+                                            playsInline
+                                            preload="metadata"
+                                            onError={(e) => {
+                                                // Si el video falla, mostrar ícono
+                                                const target = e.target as HTMLVideoElement;
+                                                target.style.display = 'none';
+                                                const parent = target.parentElement;
+                                                if (parent && !parent.querySelector('.video-fallback')) {
+                                                    const fallback = document.createElement('div');
+                                                    fallback.className = 'video-fallback text-white text-3xl';
+                                                    fallback.innerHTML = '🎬';
+                                                    parent.appendChild(fallback);
+                                                }
+                                            }}
+                                        />
+                                        {/* Icono de play overlay */}
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                            <div className="bg-black/50 rounded-full p-2">
+                                                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M8 5v14l11-7z"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <img src={post.generatedImageUrl} className="w-full h-full object-cover" alt="Thumb" />
                                 )

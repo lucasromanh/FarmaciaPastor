@@ -10,6 +10,11 @@ export const addBrandWatermark = async (
     imageUrl: string,
     brandInfo: BrandInfo
 ): Promise<string> => {
+    // Descargar la imagen como blob para evitar problemas CORS
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    
     return new Promise((resolve, reject) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -20,7 +25,6 @@ export const addBrandWatermark = async (
         }
 
         const img = new Image();
-        img.crossOrigin = 'anonymous'; // Para imágenes externas
         
         img.onload = () => {
             canvas.width = img.width;
@@ -87,19 +91,22 @@ export const addBrandWatermark = async (
                 ctx.fillText(address, canvas.width / 2, canvas.height - watermarkHeight / 2 + 45);
                 
                 resolve(canvas.toDataURL('image/jpeg', 0.95));
+                URL.revokeObjectURL(objectUrl);
             }
         };
         
         img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
             reject(new Error('Error cargando imagen'));
         };
         
         // Timeout de 30 segundos
         setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
             reject(new Error('La imagen tardó más de 30 segundos en cargar'));
         }, 30000);
         
-        img.src = imageUrl;
+        img.src = objectUrl;
     });
 };
 
